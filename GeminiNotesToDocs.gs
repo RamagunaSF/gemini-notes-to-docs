@@ -31,6 +31,7 @@ const CONFIG = {
     { keyword: "Huddel",             docName: "DEV Huddle" },           // intentional typo variant seen in Gemini subjects
     { keyword: "Sales Team Connect", docName: "[Internal] Insulet: Sales Team Connect (Daily)" },
     { keyword: "Sales Cloud",        docName: "Insulet: Sales Cloud - Daily Sync" },
+    { keyword: "Service Cloud",      docName: "Daily Sync - Service Cloud Team" },
     { keyword: "Test",               docName: "Test Automation" },
   ],
 
@@ -246,6 +247,56 @@ function extractNotesFromEmail_(message) {
  */
 function getOrCreateLabel_(labelName) {
   return GmailApp.getUserLabelByName(labelName) || GmailApp.createLabel(labelName);
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DRY RUN — run before processGeminiNotes() to confirm routing is correct
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Dry-run preview: finds today's unprocessed Gemini emails and shows exactly
+ * which doc each one would route to — without creating docs, writing notes,
+ * or labeling anything.
+ *
+ * HOW TO USE:
+ *   1. Select previewGeminiNotes in the function dropdown
+ *   2. Click Run
+ *   3. Open View → Logs and confirm the routing looks correct
+ *   4. If everything looks right, run processGeminiNotes() for real
+ *
+ * To preview a specific date range instead of today, replace the query below
+ * the same way as the BACKFILL override in processGeminiNotes().
+ */
+function previewGeminiNotes() {
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy/MM/dd");
+  const query = `from:gemini-notes@google.com -label:${CONFIG.PROCESSED_LABEL} after:${today}`;
+  const threads = GmailApp.search(query, 0, 50);
+
+  if (threads.length === 0) {
+    Logger.log("── DRY RUN ── No unprocessed Gemini emails found for today.");
+    return;
+  }
+
+  Logger.log(`── DRY RUN ── Found ${threads.length} thread(s). Showing routing preview:\n`);
+
+  threads.forEach((thread, i) => {
+    thread.getMessages().forEach(message => {
+      const subject     = message.getSubject();
+      const date        = Utilities.formatDate(message.getDate(), Session.getScriptTimeZone(), "MMM d, yyyy h:mm a");
+      const baseDocName = resolveDocName_(subject);
+      const docName     = baseDocName
+        ? `${baseDocName} — ${getCurrentPeriod_()}`
+        : "⚠️  NO MATCH — would go to Uncategorized or be skipped";
+
+      Logger.log(`[${i + 1}] Subject : ${subject}`);
+      Logger.log(`     Date    : ${date}`);
+      Logger.log(`     → Doc   : ${docName}`);
+      Logger.log("─────────────────────────────────────────────");
+    });
+  });
+
+  Logger.log("DRY RUN complete. No emails were processed or labeled.");
 }
 
 
